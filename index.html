@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>値札帳 ガソリン価格の記録と比較</title>
+<meta name="theme-color" content="#DADDD8">
+<meta name="description" content="スタンドごとのガソリン価格を記録して、県平均と比べるアプリ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="値札帳">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --page:#DADDD8; --panel:#FBFBF8; --ink:#1C2024; --sub:#5D646B; --rule:#C3C8C1;
+  --blue:#1D4F91; --led:#15181A;
+  --fuel-led:#FF4136; --fuel-ink:#C8241B;
+  --sans:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --num:"Barlow Condensed","Arial Narrow",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--page);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;
+  padding-bottom:calc(120px + env(safe-area-inset-bottom));-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums}
+
+/* header */
+.top{padding:calc(18px + env(safe-area-inset-top)) 0 10px}
+.title-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{margin:0;font-size:1.75rem;font-weight:700;letter-spacing:.06em;line-height:1.1}
+h1 small{display:block;font-size:.72rem;font-weight:500;letter-spacing:.02em;color:var(--sub);margin-top:4px}
+.pref{appearance:none;border:2px solid var(--ink);background:var(--panel);border-radius:8px;padding:6px 30px 6px 10px;font-weight:700;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+.fuels{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:14px}
+.fuel-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 4px;border:2px solid var(--ink);border-radius:8px;background:var(--panel);font-weight:700}
+.fuel-btn i{width:10px;height:22px;border-radius:3px;background:var(--c);flex:none}
+.fuel-btn[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+/* price sign */
+.sign{margin-top:16px;background:var(--panel);border:5px solid var(--ink);border-radius:12px;overflow:hidden}
+.band{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--blue);color:#fff;padding:10px 14px}
+.band b{font-family:var(--num);font-size:1.9rem;font-weight:600;line-height:1}
+.band small{font-size:.75rem;opacity:.85;margin-left:6px}
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;padding:11px 12px;border-top:2px solid var(--ink)}
+.row:first-child{border-top:none}
+.name{font-weight:700;font-size:1.05rem;line-height:1.35;word-break:break-all}
+.tag{display:inline-block;font-size:.7rem;font-weight:700;color:#fff;background:var(--fuel-ink);border-radius:4px;padding:0 6px;margin-right:6px;vertical-align:2px}
+.meta{font-size:.78rem;color:var(--sub)}
+.meta .stale{color:#9A3412;font-weight:700}
+.diff{font-size:.8rem;font-weight:700}
+.diff.lo{color:var(--blue)} .diff.hi{color:var(--sub)}
+.led{background:var(--led);border-radius:6px;padding:0 10px;min-width:5.4ch;text-align:right;font-family:var(--num);font-weight:600;
+  font-size:2.5rem;line-height:1.15;color:var(--fuel-led);text-shadow:0 0 8px color-mix(in srgb,var(--fuel-led) 55%,transparent)}
+.pole{display:flex;justify-content:space-between;width:46%;margin:0 auto}
+.pole span{width:12px;height:22px;background:var(--ink)}
+.sign-empty{padding:22px 16px;text-align:center}
+.sign-empty p{margin:0 0 12px}
+.unrec{padding:8px 12px;border-top:2px solid var(--ink);font-size:.8rem;color:var(--sub)}
+
+.bar{display:flex;gap:6px;margin-top:14px}
+.chip{border:2px solid var(--ink);background:transparent;border-radius:999px;padding:4px 14px;font-weight:700;font-size:.85rem}
+.chip[aria-pressed="true"]{background:var(--ink);color:#fff}
+.fill{margin-top:14px;padding:12px 14px;border-left:6px solid var(--fuel-ink);background:var(--panel);border-radius:0 8px 8px 0}
+.fill input{width:4.2em;border:none;border-bottom:2px solid var(--ink);background:transparent;text-align:center;font-family:var(--num);font-size:1.15rem;font-weight:600}
+.fill b{font-family:var(--num);font-size:1.4rem}
+
+/* trend */
+.panel{background:var(--panel);border:2px solid var(--ink);border-radius:10px;padding:14px;margin-top:16px}
+.panel h2{margin:0 0 4px;font-size:1.05rem}
+.panel .lead{margin:0 0 12px;font-size:.82rem;color:var(--sub)}
+#chart{width:100%;min-height:220px}
+#chart svg{display:block;width:100%;height:auto}
+#chart .empty{padding:40px 10px;text-align:center;color:var(--sub);margin:0}
+.info{min-height:1.6em;font-size:.85rem;margin-top:6px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.lg{display:flex;align-items:center;gap:6px;border:1.5px solid var(--rule);background:#fff;border-radius:6px;padding:2px 9px;font-size:.8rem}
+.lg i{width:16px;height:3px;background:var(--c);border-radius:2px}
+.lg.dash i{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
+.lg[aria-pressed="false"]{opacity:.4;text-decoration:line-through}
+
+/* data */
+.btn{border:2px solid var(--ink);background:var(--ink);color:#fff;border-radius:8px;padding:9px 16px;font-weight:700}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn:disabled{opacity:.55;cursor:wait}
+.btn.small{padding:4px 10px;font-size:.8rem}
+.status{font-size:.82rem;color:var(--sub);margin:8px 0 0}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:12px}
+th,td{padding:6px 4px;border-bottom:1px solid var(--rule);text-align:right}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:500;color:var(--sub);font-size:.75rem}
+td .num{font-size:1.05rem}
+.x{border:none;background:none;color:var(--sub);font-size:1.1rem;padding:0 4px;line-height:1}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.f label,.f .lbl{display:block;font-size:.78rem;color:var(--sub);margin:10px 0 3px}
+.f input,.f select{width:100%;border:2px solid var(--ink);border-radius:8px;padding:8px 10px;background:#fff}
+.f .price{font-family:var(--num);font-size:1.3rem;font-weight:600;padding:4px 10px;border-left-width:8px}
+.f .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+details.st{border-top:1px solid var(--rule);padding:8px 0}
+details.st summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+details.st summary::-webkit-details-marker{display:none}
+details.st summary span{font-weight:400;font-size:.8rem;color:var(--sub)}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+a{color:var(--blue)}
+
+/* nav + fab */
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:3px solid var(--ink);padding-bottom:env(safe-area-inset-bottom);z-index:10}
+.tabs .wrap{display:grid;grid-template-columns:repeat(3,1fr)}
+.tab{border:none;background:none;padding:12px 0 13px;font-weight:700;color:var(--sub);border-top:4px solid transparent;margin-top:-3px}
+.tab[aria-current="page"]{color:var(--ink);border-top-color:var(--fuel-ink)}
+.fab{position:fixed;right:max(14px,calc(50% - 266px));bottom:calc(70px + env(safe-area-inset-bottom));z-index:11;
+  border:3px solid var(--ink);background:var(--fuel-ink);color:#fff;border-radius:999px;padding:11px 20px;font-weight:700;font-size:1rem;
+  box-shadow:0 3px 0 var(--ink)}
+.fab:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+
+dialog{border:3px solid var(--ink);border-radius:14px 14px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom));width:100%;max-width:560px;
+  margin:auto auto 0;background:var(--panel);color:var(--ink);max-height:92vh}
+dialog::backdrop{background:rgba(28,32,36,.45)}
+dialog h2{margin:0;font-size:1.1rem}
+@media (min-width:600px){dialog{border-radius:14px;margin:auto}}
+
+.toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:8px 16px;border-radius:8px;font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;max-width:90vw}
+.toast.on{opacity:1}
+.update{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top));z-index:30;display:flex;gap:10px;align-items:center;
+  background:var(--ink);color:#fff;border-radius:10px;padding:8px 8px 8px 14px;font-size:.88rem;max-width:92vw}
+.update button{border:none;background:#fff;color:var(--ink);border-radius:6px;padding:4px 10px;font-weight:700}
+.f .key{font-family:var(--num);letter-spacing:.04em}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <div class="title-row">
+    <h1>値札帳<small>ガソリン価格の記録と比較</small></h1>
+    <select id="pref" class="pref" aria-label="都道府県"></select>
+  </div>
+  <div class="fuels" id="fuels"></div>
+</header>
+
+<main class="wrap">
+  <section id="v-compare"></section>
+
+  <section id="v-trend" hidden>
+    <div class="bar" id="ranges"></div>
+    <div class="panel">
+      <div id="chart"></div>
+      <div class="info" id="chart-info"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </section>
+
+  <section id="v-data" hidden></section>
+</main>
+
+<button class="fab" data-act="open-record">＋ 値段を記録</button>
+
+<nav class="tabs" aria-label="表示切替">
+  <div class="wrap">
+    <button class="tab" data-act="tab" data-view="compare">比較</button>
+    <button class="tab" data-act="tab" data-view="trend">推移</button>
+    <button class="tab" data-act="tab" data-view="data">データ</button>
+  </div>
+</nav>
+
+<dialog id="dlg-record">
+  <form id="f-record" class="f" method="dialog">
+    <h2>看板の値段を記録</h2>
+    <label for="r-station">スタンド</label>
+    <select id="r-station" name="station" required></select>
+    <label for="r-date">日付</label>
+    <input id="r-date" name="date" type="date" required>
+    <span class="lbl">1リットルあたりの価格（円）空欄の油種は記録しません</span>
+    <div class="grid3" id="r-prices"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">やめる</button>
+      <button type="submit" class="btn">記録する</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-station">
+  <form id="f-station" class="f" method="dialog">
+    <h2>スタンドを登録</h2>
+    <label for="s-name">名前</label>
+    <input id="s-name" name="name" required placeholder="例：金沢北SS">
+    <label for="s-brand">ブランド</label>
+    <input id="s-brand" name="brand" list="brands" placeholder="例：ENEOS">
+    <datalist id="brands"><option>ENEOS</option><option>出光</option><option>apollostation</option><option>コスモ石油</option><option>キグナス</option><option>宇佐美</option><option>JA-SS</option><option>コストコ</option><option>セルフ（独立系）</option></datalist>
+    <span class="lbl">位置（近い順の並べ替えに使います）</span>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="button" class="btn ghost small" data-act="station-loc">今いる場所を登録</button>
+      <span id="s-loc" class="meta">未登録</span>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn ghost" data-act="close">やめる</button>
+      <button type="submit" class="btn">登録する</button>
+    </div>
+  </form>
+</dialog>
+
+<input type="file" id="import-file" accept="application/json,.json" hidden>
+<div class="update" id="update" hidden>新しいバージョンがあります<button data-act="apply-update">再読み込み</button></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===== 定数 ===== */
+const PREFS=['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+// ノズルの色分け（レギュラー赤・ハイオク黄・軽油緑）
+const FUELS={
+  regular:{label:'レギュラー',led:'#FF4136',ink:'#C8241B'},
+  premium:{label:'ハイオク',led:'#FFC21A',ink:'#A97A00'},
+  diesel:{label:'軽油',led:'#3BD16F',ink:'#1E8C45'}
+};
+const PAL=['#1C2024','#8A5A2B','#7B3F7A','#2F7A74','#B5651D','#4E5D7A','#6B8E23','#A23B3B'];
+const RANGES=[['3か月',90],['半年',182],['1年',365],['全部',0]];
+const DAY=864e5;
+
+/* ===== 保存（端末内の localStorage） ===== */
+const KEY='nefuda-v1';
+const KEY_API='nefuda-api';   // APIキーは記録とは別に保存し、バックアップにも含めない
+const store={
+  async load(){
+    try{ const v=localStorage.getItem(KEY); return v?JSON.parse(v):null; }catch(e){ return null; }
+  },
+  async save(d){
+    try{ localStorage.setItem(KEY,JSON.stringify(d)); }
+    catch(e){ toast('保存できませんでした。バックアップを書き出しておいてください'); }
+  }
+};
+const DEFAULT_MODEL='claude-sonnet-5-5';
+function apiConf(){try{return Object.assign({key:'',model:DEFAULT_MODEL},JSON.parse(localStorage.getItem(KEY_API)||'{}'));}catch(_){return {key:'',model:DEFAULT_MODEL};}}
+function setApiConf(c){try{if(c)localStorage.setItem(KEY_API,JSON.stringify(c));else localStorage.removeItem(KEY_API);}catch(_){}}
+
+/* ===== 状態 ===== */
+const blank=()=>({v:1,pref:'石川県',fuel:'regular',stations:[],records:[],official:[]});
+let D=blank();
+const ui={view:'compare',sort:'price',range:90,hidden:new Set(),pos:null,liters:40,lastStation:null,newLoc:null,backToRecord:false};
+
+/* ===== 小物 ===== */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>new Date().toLocaleDateString('sv-SE');
+const parseD=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getTime();};
+const md=s=>{const[,m,d]=s.split('-').map(Number);return `${m}月${d}日`;};
+const fmt=v=>Number.isInteger(v)?String(v):v.toFixed(1);
+const daysAgo=s=>Math.round((parseD(today())-parseD(s))/DAY);
+const ago=s=>{const n=daysAgo(s);return n<=0?'今日':n===1?'昨日':`${n}日前`;};
+const okPrice=v=>Number.isFinite(v)&&v>=50&&v<=500;
+const save=()=>store.save(D);
+let tt;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),2600);}
+function km(a,b){const R=6371,r=x=>x*Math.PI/180,dLa=r(b.lat-a.lat),dLo=r(b.lng-a.lng);
+  const h=Math.sin(dLa/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function getPos(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej(new Error('no geo'));
+  navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),rej,{enableHighAccuracy:true,timeout:15000});});}
+
+/* ===== データ参照 ===== */
+function latestOfficial(area,fuel){
+  let best=null;for(const o of D.official){if(o.area===area&&o[fuel]!=null&&(!best||o.date>best.date))best=o;}
+  return best?{date:best.date,v:best[fuel]}:null;
+}
+function latestRecord(stationId,fuel){
+  let best=null;for(const r of D.records){if(r.stationId===stationId&&r.fuel===fuel&&(!best||r.date>best.date||(r.date===best.date&&r.id>best.id)))best=r;}
+  return best;
+}
+
+/* ===== 描画 ===== */
+function render(){
+  const f=FUELS[D.fuel];
+  document.documentElement.style.setProperty('--fuel-led',f.led);
+  document.documentElement.style.setProperty('--fuel-ink',f.ink);
+  $('#pref').value=D.pref;
+  document.querySelectorAll('.fuel-btn').forEach(b=>b.setAttribute('aria-pressed',b.dataset.fuel===D.fuel));
+  document.querySelectorAll('.tab').forEach(b=>{if(b.dataset.view===ui.view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  for(const v of ['compare','trend','data'])$('#v-'+v).hidden=ui.view!==v;
+  $('.fab').hidden=ui.view==='data';
+  if(ui.view==='compare')renderCompare();
+  if(ui.view==='trend')renderTrend();
+  if(ui.view==='data')renderData();
+}
+
+function renderCompare(){
+  const fuel=D.fuel,avg=latestOfficial(D.pref,fuel);
+  const band=`<div class="band"><span>${esc(D.pref)}の平均</span><span>${avg
+    ?`<b>${fmt(avg.v)}</b><small>${md(avg.date)}調査</small>`
+    :`<small>公式値なし（データタブで取得）</small>`}</span></div>`;
+
+  if(!D.stations.length){
+    $('#v-compare').innerHTML=`<div class="sign">${band}<div class="sign-empty">
+      <p>よく通るスタンドを登録して看板の値段を記録すると、ここに安い順で並びます。</p>
+      <button class="btn" data-act="open-station">スタンドを登録</button></div></div>
+      <div class="pole" aria-hidden="true"><span></span><span></span></div>`;
+    return;
+  }
+  let rows=[],unrec=[];
+  for(const s of D.stations){const r=latestRecord(s.id,fuel);
+    if(r){const dist=(ui.pos&&s.lat!=null)?km(ui.pos,s):null;rows.push({s,r,dist});}else unrec.push(s.name);}
+  const minP=rows.length?Math.min(...rows.map(x=>x.r.price)):null;
+  if(ui.sort==='near'&&ui.pos)rows.sort((a,b)=>(a.dist??1e9)-(b.dist??1e9)||a.r.price-b.r.price);
+  else rows.sort((a,b)=>a.r.price-b.r.price||b.r.date.localeCompare(a.r.date));
+
+  const li=rows.map(({s,r,dist})=>{
+    const n=daysAgo(r.date);
+    const age=n>14?`<span class="stale">${ago(r.date)}の値</span>`:ago(r.date)+'に記録';
+    let diff='';
+    if(avg){const d=Math.round((r.price-avg.v)*10)/10;
+      diff=d<0?`<div class="diff lo">平均より${fmt(-d)}円安い</div>`:d>0?`<div class="diff hi">平均より${fmt(d)}円高い</div>`:`<div class="diff hi">平均と同じ</div>`;}
+    const tag=rows.length>1&&r.price===minP?'<span class="tag">最安</span>':'';
+    const dstr=dist!=null?`　${dist<10?dist.toFixed(1):Math.round(dist)}km`:'';
+    return `<li class="row"><div><div class="name">${tag}${esc(s.name)}</div>
+      <div class="meta">${s.brand?esc(s.brand)+'　':''}${age}${dstr}</div>${diff}</div>
+      <div class="led" aria-label="${fmt(r.price)}円">${fmt(r.price)}</div></li>`;
+  }).join('');
+
+  const un=unrec.length?`<div class="unrec">${FUELS[fuel].label}の記録なし：${unrec.map(esc).join('、')}</div>`:'';
+  const body=rows.length?`<ol class="rows">${li}</ol>`:`<div class="sign-empty"><p>${FUELS[fuel].label}の値段はまだ記録されていません。</p></div>`;
+
+  let fill='';
+  const L=ui.liters;
+  const lInput=`<input id="liters" type="number" inputmode="numeric" min="1" max="200" value="${L}" aria-label="給油量（リットル）">`;
+  if(rows.length>=2){
+    const lo=rows.reduce((a,b)=>b.r.price<a.r.price?b:a),hi=rows.reduce((a,b)=>b.r.price>a.r.price?b:a);
+    const yen=Math.round((hi.r.price-lo.r.price)*L);
+    fill=`<div class="fill">${lInput}L 入れると、${esc(lo.s.name)}と${esc(hi.s.name)}で <b>${yen.toLocaleString()}</b>円の差</div>`;
+  }else if(rows.length===1&&avg){
+    const yen=Math.round((avg.v-rows[0].r.price)*L);
+    fill=`<div class="fill">${lInput}L 入れると、県平均より <b>${Math.abs(yen).toLocaleString()}</b>円${yen>=0?'安い':'高い'}</div>`;
+  }
+
+  const sorts=`<div class="bar"><button class="chip" data-act="sort" data-sort="price" aria-pressed="${ui.sort==='price'}">安い順</button>
+    <button class="chip" data-act="sort" data-sort="near" aria-pressed="${ui.sort==='near'}">近い順</button></div>`;
+
+  $('#v-compare').innerHTML=`<div class="sign">${band}${body}${un}</div>
+    <div class="pole" aria-hidden="true"><span></span><span></span></div>${sorts}${fill}`;
+}
+
+/* ---- 推移グラフ ---- */
+function buildSeries(fuel){
+  const out=[];
+  const off=(area,key,label,color,dash)=>{const pts=D.official.filter(o=>o.area===area&&o[fuel]!=null)
+    .map(o=>({t:parseD(o.date),v:o[fuel],d:o.date})).sort((a,b)=>a.t-b.t);out.push({key,label,color,dash,pts});};
+  off(D.pref,'pref',D.pref+'平均','#1D4F91','');
+  off('全国','nat','全国平均','#7D93B5','5 4');
+  D.stations.forEach((s,i)=>{
+    const pts=D.records.filter(r=>r.stationId===s.id&&r.fuel===fuel).map(r=>({t:parseD(r.date),v:r.price,d:r.date})).sort((a,b)=>a.t-b.t);
+    out.push({key:s.id,label:s.name,color:PAL[i%PAL.length],dash:'',pts});
+  });
+  return out;
+}
+function niceStep(raw){for(const s of [0.5,1,2,5,10,20,50])if(raw<=s)return s;return 100;}
+
+function renderTrend(){
+  $('#ranges').innerHTML=RANGES.map(([l,d])=>`<button class="chip" data-act="range" data-range="${d}" aria-pressed="${ui.range===d}">${l}</button>`).join('');
+  const end=parseD(today()),start=ui.range?end-ui.range*DAY:null;
+  const series=buildSeries(D.fuel).map(s=>({...s,pts:s.pts.filter(p=>!start||p.t>=start)})).filter(s=>s.pts.length);
+  $('#legend').innerHTML=series.map(s=>`<button class="lg${s.dash?' dash':''}" style="--c:${s.color}" data-act="legend" data-key="${esc(s.key)}" aria-pressed="${!ui.hidden.has(s.key)}"><i></i>${esc(s.label)}</button>`).join('');
+  $('#chart-info').textContent='';
+  const vis=series.filter(s=>!ui.hidden.has(s.key));
+  const box=$('#chart');
+  if(!vis.length){box.innerHTML=`<p class="empty">この期間の${FUELS[D.fuel].label}のデータがありません。<br>値段を記録するか、データタブで公式値を取得してください。</p>`;return;}
+
+  const W=Math.max(300,box.clientWidth||600),H=Math.round(Math.min(340,Math.max(220,W*0.62)));
+  const m={l:40,r:12,t:14,b:26};
+  const all=vis.flatMap(s=>s.pts);
+  let t0=start??Math.min(...all.map(p=>p.t)),t1=end;
+  if(t1-t0<14*DAY)t0=t1-14*DAY;
+  let lo=Math.min(...all.map(p=>p.v)),hi=Math.max(...all.map(p=>p.v));
+  if(hi-lo<4){const c=(hi+lo)/2;lo=c-2;hi=c+2;}
+  const step=niceStep((hi-lo)/5),yLo=Math.floor(lo/step)*step,yHi=Math.ceil(hi/step)*step;
+  const x=t=>m.l+(t-t0)/(t1-t0)*(W-m.l-m.r), y=v=>m.t+(yHi-v)/(yHi-yLo)*(H-m.t-m.b);
+
+  let g='';
+  for(let v=yLo;v<=yHi+1e-9;v+=step){
+    g+=`<line x1="${m.l}" x2="${W-m.r}" y1="${y(v)}" y2="${y(v)}" stroke="#D6D9D3"/>`+
+       `<text x="${m.l-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#5D646B" font-family="Barlow Condensed,sans-serif">${fmt(Math.round(v*10)/10)}</text>`;
+  }
+  // 横軸：月初、短期間なら週
+  let ticks=[];const d0=new Date(t0);
+  for(let d=new Date(d0.getFullYear(),d0.getMonth()+1,1);d.getTime()<=t1;d.setMonth(d.getMonth()+1))ticks.push({t:d.getTime(),l:(d.getMonth()===0?`${d.getFullYear()}年`:'')+`${d.getMonth()+1}月`});
+  if(ticks.length<2){ticks=[];for(let t=t1;t>=t0;t-=7*DAY){const d=new Date(t);ticks.unshift({t,l:`${d.getMonth()+1}/${d.getDate()}`});}}
+  const every=Math.ceil(ticks.length/Math.max(3,Math.floor(W/80)));
+  ticks.filter((_,i)=>i%every===0).forEach(k=>{
+    g+=`<line x1="${x(k.t)}" x2="${x(k.t)}" y1="${m.t}" y2="${H-m.b}" stroke="#ECEEEA"/>`+
+       `<text x="${x(k.t)}" y="${H-8}" text-anchor="middle" font-size="11" fill="#5D646B">${k.l}</text>`;
+  });
+
+  let lines='',dots='';
+  for(const s of vis){
+    const p=s.pts.map(q=>`${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`).join(' ');
+    if(s.pts.length>1)lines+=`<polyline points="${p}" fill="none" stroke="${s.color}" stroke-width="${s.key==='pref'?3:2}" stroke-dasharray="${s.dash}" stroke-linejoin="round"/>`;
+    for(const q of s.pts){
+      const info=`${s.label}　${md(q.d)}　${fmt(q.v)}円`;
+      dots+=`<circle cx="${x(q.t)}" cy="${y(q.v)}" r="${s.key==='pref'||s.key==='nat'?2.5:3.5}" fill="${s.color}"/>`+
+            `<circle cx="${x(q.t)}" cy="${y(q.v)}" r="11" fill="transparent" data-act="pt" data-info="${esc(info)}" style="cursor:pointer"/>`;
+    }
+  }
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${FUELS[D.fuel].label}の価格推移">${g}${lines}${dots}</svg>`;
+}
+
+/* ---- データタブ ---- */
+function renderData(){
+  const rowsO=D.official.filter(o=>o.area===D.pref||o.area==='全国').sort((a,b)=>b.date.localeCompare(a.date)||a.area.localeCompare(b.area)).slice(0,16);
+  const tableO=rowsO.length?`<table><thead><tr><th>調査日</th><th>地域</th><th>レギュラー</th><th>ハイオク</th><th>軽油</th><th></th></tr></thead><tbody>${
+    rowsO.map(o=>`<tr><td>${md(o.date)}${o.src&&/^https?:/.test(o.src)?` <a href="${esc(o.src)}" target="_blank" rel="noopener">出典</a>`:o.src==='manual'?' <span class="meta">手入力</span>':''}</td>
+      <td>${o.area==='全国'?'全国':'県'}</td>${['regular','premium','diesel'].map(f=>`<td class="num">${o[f]!=null?fmt(o[f]):'－'}</td>`).join('')}
+      <td><button class="x" data-act="del-official" data-id="${esc(o.date+'|'+o.area)}" aria-label="削除">×</button></td></tr>`).join('')}</tbody></table>`
+    :'<p class="status">まだ公式値がありません。</p>';
+
+  const st=D.stations.map(s=>{
+    const recs=D.records.filter(r=>r.stationId===s.id).sort((a,b)=>b.date.localeCompare(a.date));
+    return `<details class="st"><summary>${esc(s.name)}<span>${s.brand?esc(s.brand)+'　':''}${recs.length}件${s.lat!=null?'　位置あり':''}</span></summary>
+      ${recs.length?`<table><tbody>${recs.slice(0,30).map(r=>`<tr><td>${md(r.date)}</td><td>${FUELS[r.fuel].label}</td><td class="num">${fmt(r.price)}</td>
+        <td><button class="x" data-act="del-record" data-id="${r.id}" aria-label="削除">×</button></td></tr>`).join('')}</tbody></table>`:''}
+      <div class="row-actions"><button class="btn ghost small" data-act="open-record" data-station="${s.id}">このスタンドで記録</button>
+      <button class="btn ghost small" data-act="del-station" data-id="${s.id}">スタンドを削除</button></div></details>`;
+  }).join('');
+
+  $('#v-data').innerHTML=`
+  <div class="panel">
+    <h2>公式の平均価格</h2>
+    <p class="lead">資源エネルギー庁の週次調査（${esc(D.pref)}と全国）をAIがWeb検索で読み取ります。数値は出典で確認してください。</p>
+    <button class="btn" id="btn-fetch" data-act="fetch-official">最新の公式値を取得</button>
+    <p class="status" id="fetch-status"></p>
+    ${tableO}
+    <details class="st" style="margin-top:10px"><summary>手入力で追加</summary>
+      <form id="f-official" class="f">
+        <div class="grid3" style="grid-template-columns:1.4fr 1fr">
+          <div><label for="o-date">調査日</label><input id="o-date" name="date" type="date" required></div>
+          <div><label for="o-area">地域</label><select id="o-area" name="area"><option>${esc(D.pref)}</option><option>全国</option></select></div>
+        </div>
+        <div class="grid3">${priceInputs('o')}</div>
+        <div class="actions"><button class="btn" type="submit">追加する</button></div>
+      </form>
+    </details>
+  </div>
+
+  <div class="panel">
+    <h2>スタンド</h2>
+    ${st||'<p class="status">登録されたスタンドはありません。</p>'}
+    <div class="row-actions"><button class="btn" data-act="open-station">スタンドを登録</button></div>
+  </div>
+
+  <div class="panel">
+    <h2>自動取得の設定</h2>
+    <p class="lead">公式値の自動取得は、あなたのClaude APIキーでWeb検索を使います。キーはこの端末にだけ保存され、取得のたびにAPI料金がかかります。</p>
+    <form id="f-api" class="f">
+      <label for="a-key">APIキー</label>
+      <input id="a-key" name="key" class="key" type="password" autocomplete="off" placeholder="sk-ant-…" value="${esc(apiConf().key)}">
+      <label for="a-model">モデル</label>
+      <input id="a-model" name="model" autocomplete="off" value="${esc(apiConf().model)}">
+      <div class="actions">
+        ${apiConf().key?'<button type="button" class="btn ghost" data-act="api-clear">キーを削除</button>':''}
+        <button type="submit" class="btn">保存する</button>
+      </div>
+    </form>
+  </div>
+
+  ${installPanel()}
+
+  <div class="panel">
+    <h2>バックアップ</h2>
+    <p class="lead">記録はこの端末に保存されます。機種変更やブラウザのデータ削除に備えて、ときどきJSONで書き出してください。claude.ai版から移すときも「JSONを読み込む」を使います。</p>
+    <div class="row-actions">
+      <button class="btn ghost small" data-act="export">JSONを書き出す</button>
+      <button class="btn ghost small" data-act="copy-export">JSONをコピー</button>
+      <button class="btn ghost small" data-act="import">JSONを読み込む</button>
+    </div>
+  </div>`;
+  $('#o-date').value=today();
+}
+
+/* ===== インストール ===== */
+let installEvt=null;
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+function installPanel(){
+  if(standalone())return '';
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  return `<div class="panel"><h2>ホーム画面に追加</h2>${installEvt
+    ?'<p class="lead">アプリとして追加すると、オフラインでも開けて記録が消えにくくなります。</p><button class="btn" data-act="install">ホーム画面に追加</button>'
+    :ios?'<p class="lead">Safariの共有ボタンから「ホーム画面に追加」を選んでください。追加しておくと、使わない期間が続いても記録が消えにくくなります。</p>'
+    :'<p class="lead">ブラウザのメニューから「アプリをインストール」または「ホーム画面に追加」を選んでください。</p>'}</div>`;
+}
+
+function priceInputs(prefix){
+  return Object.entries(FUELS).map(([k,f])=>`<div><label for="${prefix}-${k}">${f.label}</label>
+    <input id="${prefix}-${k}" name="${k}" class="price" type="number" inputmode="decimal" step="0.1" min="50" max="500" style="border-left-color:${f.ink}"></div>`).join('');
+}
+
+/* ===== 公式値の取得（Claude API + Web検索） ===== */
+async function fetchOfficial(){
+  const btn=$('#btn-fetch'),st=$('#fetch-status');
+  const conf=apiConf();
+  if(!conf.key){st.textContent='自動取得にはClaude APIキーが必要です。下の「自動取得の設定」で登録するか、手入力で追加してください。';return;}
+  if(!navigator.onLine){st.textContent='オフラインです。電波のある場所で取得してください。';return;}
+  btn.disabled=true;btn.textContent='取得中…';st.textContent='Web検索で調査結果を探しています。30秒ほどかかります。';
+  const pref=D.pref;
+  const prompt=`資源エネルギー庁「石油製品価格調査」（給油所小売価格の週次調査）の結果を調べてください。
+対象地域は「${pref}」と「全国」です。直近の調査日から遡って最大8週分、レギュラー・ハイオク・軽油の1リットルあたり税込価格（円）を集めてください。
+見つからない値は null にし、推測で埋めないでください。dateは調査日です。
+回答はJSONだけを返してください。前置き・説明・コードフェンスは不要です。形式:
+{"source":"参照したURL","weeks":[{"date":"YYYY-MM-DD","area":"${pref}","regular":171.2,"premium":182.0,"diesel":160.1},{"date":"YYYY-MM-DD","area":"全国","regular":169.9,"premium":180.8,"diesel":159.3}]}`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'content-type':'application/json','x-api-key':conf.key,'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:conf.model||DEFAULT_MODEL,max_tokens:2000,messages:[{role:'user',content:prompt}],
+        tools:[{type:'web_search_20250305',name:'web_search',max_uses:5}]})});
+    const data=await res.json();
+    if(!res.ok){const msg=data?.error?.message||res.status;
+      throw new Error(res.status===401?'APIキーが正しくありません':`APIエラー：${msg}`);}
+    const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').replace(/```json|```/g,'');
+    const s=text.indexOf('{'),e=text.lastIndexOf('}');
+    if(s<0||e<s)throw new Error('JSONなし');
+    const obj=JSON.parse(text.slice(s,e+1));
+    const src=typeof obj.source==='string'?obj.source:'';
+    let added=0;
+    for(const w of obj.weeks||[]){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(w.date)||(w.area!==pref&&w.area!=='全国'))continue;
+      const vals={};let any=false;
+      for(const f of Object.keys(FUELS)){const v=Number(w[f]);vals[f]=w[f]!=null&&okPrice(v)?v:null;if(vals[f]!=null)any=true;}
+      if(!any)continue;
+      const i=D.official.findIndex(o=>o.date===w.date&&o.area===w.area);
+      if(i>=0&&D.official[i].src==='manual')continue; // 手入力を優先
+      const entry={date:w.date,area:w.area,...vals,src};
+      if(i>=0)D.official[i]=entry;else{D.official.push(entry);added++;}
+    }
+    await save();
+    st.textContent=added?`${added}件の週次データを追加しました。`:'新しいデータは見つかりませんでした（取得済みの値は更新済み）。';
+    renderData();$('#fetch-status').textContent=st.textContent;
+  }catch(err){
+    st.textContent=(err&&/APIキー|APIエラー/.test(err.message)?err.message+'。':'公式値を読み取れませんでした。')+'時間をおいて再取得するか、手入力で追加してください。';
+    btn.disabled=false;btn.textContent='最新の公式値を取得';
+  }
+}
+
+/* ===== ダイアログ ===== */
+function openRecord(stationId){
+  if(!D.stations.length){ui.backToRecord=true;openStation();return;}
+  const sel=$('#r-station');
+  sel.innerHTML=D.stations.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')+'<option value="__new">＋ 新しいスタンドを登録</option>';
+  sel.value=stationId||ui.lastStation||D.stations[0].id;
+  if(sel.value==='')sel.value=D.stations[0].id;
+  $('#r-date').value=today();
+  $('#r-prices').innerHTML=priceInputs('r');
+  $('#dlg-record').showModal();
+  setTimeout(()=>$('#r-'+D.fuel).focus(),50);
+}
+function openStation(){
+  $('#f-station').reset();ui.newLoc=null;$('#s-loc').textContent='未登録';
+  $('#dlg-station').showModal();
+}
+
+/* ===== イベント ===== */
+document.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  const a=el.dataset.act;
+  if(a==='fuel'){D.fuel=el.dataset.fuel;save();render();}
+  else if(a==='tab'){ui.view=el.dataset.view;render();window.scrollTo(0,0);}
+  else if(a==='sort'){
+    if(el.dataset.sort==='near'&&!ui.pos){
+      toast('現在地を取得しています');
+      try{ui.pos=await getPos();}catch(_){toast('現在地を取得できませんでした。位置情報の許可を確認してください');return;}
+      if(!D.stations.some(s=>s.lat!=null))toast('位置が登録されたスタンドがありません');
+    }
+    ui.sort=el.dataset.sort;renderCompare();
+  }
+  else if(a==='range'){ui.range=Number(el.dataset.range);renderTrend();}
+  else if(a==='legend'){const k=el.dataset.key;ui.hidden.has(k)?ui.hidden.delete(k):ui.hidden.add(k);renderTrend();}
+  else if(a==='pt'){$('#chart-info').textContent=el.dataset.info;}
+  else if(a==='open-record'){openRecord(el.dataset.station);}
+  else if(a==='open-station'){openStation();}
+  else if(a==='close'){el.closest('dialog').close();ui.backToRecord=false;}
+  else if(a==='station-loc'){
+    $('#s-loc').textContent='取得中…';
+    try{ui.newLoc=await getPos();$('#s-loc').textContent=`${ui.newLoc.lat.toFixed(4)}, ${ui.newLoc.lng.toFixed(4)}`;}
+    catch(_){$('#s-loc').textContent='取得できませんでした';}
+  }
+  else if(a==='fetch-official'){fetchOfficial();}
+  else if(a==='del-official'){const[d,ar]=el.dataset.id.split('|');D.official=D.official.filter(o=>!(o.date===d&&o.area===ar));await save();renderData();}
+  else if(a==='del-record'){D.records=D.records.filter(r=>r.id!==el.dataset.id);await save();renderData();}
+  else if(a==='del-station'){
+    const s=D.stations.find(x=>x.id===el.dataset.id);
+    if(s&&confirm(`「${s.name}」と、その記録をすべて削除します。`)){
+      D.stations=D.stations.filter(x=>x.id!==s.id);D.records=D.records.filter(r=>r.stationId!==s.id);await save();renderData();toast('削除しました');}
+  }
+  else if(a==='export'){
+    const blob=new Blob([JSON.stringify(D,null,1)],{type:'application/json'});
+    const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`nefuda-${today()}.json`;
+    document.body.appendChild(link);link.click();link.remove();
+  }
+  else if(a==='copy-export'){
+    try{await navigator.clipboard.writeText(JSON.stringify(D));toast('JSONをコピーしました');}catch(_){toast('コピーできませんでした');}
+  }
+  else if(a==='import'){$('#import-file').click();}
+  else if(a==='api-clear'){setApiConf(null);renderData();toast('APIキーを削除しました');}
+  else if(a==='install'&&installEvt){installEvt.prompt();await installEvt.userChoice;installEvt=null;renderData();}
+  else if(a==='apply-update'){swWaiting?.postMessage('skipWaiting');}
+});
+
+$('#pref').addEventListener('change',e=>{D.pref=e.target.value;save();render();});
+
+document.addEventListener('input',e=>{
+  if(e.target.id==='liters'){const v=Number(e.target.value);if(v>0&&v<=200){ui.liters=v;
+    const pos=e.target.selectionStart;renderCompare();const n=$('#liters');n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}}
+});
+
+$('#r-station').addEventListener('change',e=>{
+  if(e.target.value==='__new'){$('#dlg-record').close();ui.backToRecord=true;openStation();}
+});
+
+$('#f-record').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const sid=$('#r-station').value,date=$('#r-date').value;
+  if(!sid||sid==='__new'||!date)return;
+  let n=0;
+  for(const f of Object.keys(FUELS)){
+    const raw=$('#r-'+f).value;if(raw==='')continue;
+    const v=Number(raw);if(!okPrice(v)){toast(`${FUELS[f].label}の価格は50〜500円で入力してください`);return;}
+    D.records.push({id:uid(),stationId:sid,date,fuel:f,price:v});n++;
+  }
+  if(!n){toast('少なくとも1つの価格を入力してください');return;}
+  ui.lastStation=sid;await save();$('#dlg-record').close();render();toast(`${n}件記録しました`);
+});
+
+$('#f-station').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=$('#s-name').value.trim();if(!name)return;
+  const s={id:uid(),name,brand:$('#s-brand').value.trim()};
+  if(ui.newLoc){s.lat=ui.newLoc.lat;s.lng=ui.newLoc.lng;}
+  D.stations.push(s);ui.lastStation=s.id;await save();
+  $('#dlg-station').close();toast('登録しました');
+  if(ui.backToRecord){ui.backToRecord=false;openRecord(s.id);}
+  render();
+});
+
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='f-api')return;
+  e.preventDefault();
+  const key=$('#a-key').value.trim(),model=$('#a-model').value.trim()||DEFAULT_MODEL;
+  if(key&&!key.startsWith('sk-ant-')){toast('APIキーは sk-ant- で始まります');return;}
+  setApiConf(key?{key,model}:null);renderData();toast(key?'保存しました':'APIキーを削除しました');
+});
+
+document.addEventListener('submit',async e=>{
+  if(e.target.id!=='f-official')return;
+  e.preventDefault();
+  const date=$('#o-date').value,area=$('#o-area').value;
+  const vals={};let any=false;
+  for(const f of Object.keys(FUELS)){const raw=$('#o-'+f).value;const v=Number(raw);
+    if(raw!==''&&!okPrice(v)){toast(`${FUELS[f].label}の価格は50〜500円で入力してください`);return;}
+    vals[f]=raw===''?null:v;if(raw!=='')any=true;}
+  if(!date||!any){toast('調査日と少なくとも1つの価格を入力してください');return;}
+  D.official=D.official.filter(o=>!(o.date===date&&o.area===area));
+  D.official.push({date,area,...vals,src:'manual'});
+  await save();renderData();toast('追加しました');
+});
+
+$('#import-file').addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const obj=JSON.parse(await file.text());
+    if(!Array.isArray(obj.stations)||!Array.isArray(obj.records)||!Array.isArray(obj.official))throw 0;
+    if(!confirm('今のデータを読み込んだ内容で置き換えます。'))return;
+    D=Object.assign(blank(),obj);await save();render();toast('読み込みました');
+  }catch(_){toast('値札帳のバックアップJSONではないようです');}
+  e.target.value='';
+});
+
+let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{if(ui.view==='trend')renderTrend();},150);});
+
+/* ===== Service Worker ===== */
+let swWaiting=null;
+if('serviceWorker' in navigator){
+  window.addEventListener('load',async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('sw.js');
+      const show=w=>{swWaiting=w;$('#update').hidden=false;};
+      if(reg.waiting&&navigator.serviceWorker.controller)show(reg.waiting);
+      reg.addEventListener('updatefound',()=>{const w=reg.installing;
+        w.addEventListener('statechange',()=>{if(w.state==='installed'&&navigator.serviceWorker.controller)show(w);});});
+      let reloaded=false;
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloaded){reloaded=true;location.reload();}});
+    }catch(_){}
+  });
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;if(ui.view==='data')renderData();});
+window.addEventListener('appinstalled',()=>{installEvt=null;toast('ホーム画面に追加しました');});
+// 記録がブラウザに勝手に消されにくくする
+navigator.storage?.persist?.().catch(()=>{});
+
+/* ===== 起動 ===== */
+(async()=>{
+  $('#pref').innerHTML=PREFS.map(p=>`<option>${p}</option>`).join('');
+  $('#fuels').innerHTML=Object.entries(FUELS).map(([k,f])=>`<button class="fuel-btn" style="--c:${f.ink}" data-act="fuel" data-fuel="${k}" aria-pressed="false"><i></i>${f.label}</button>`).join('');
+  const saved=await store.load();
+  if(saved&&Array.isArray(saved.stations))D=Object.assign(blank(),saved);
+  render();
+})();
+</script>
+</body>
+</html>
